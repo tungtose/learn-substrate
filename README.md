@@ -2,7 +2,7 @@
 
 A simple Substrate-based blockchain that demonstrates storing and retrieving Ethereum address → username mappings via custom JSON-RPC methods in a 2-node environment.
 
-## [Demo Link](https://streamable.com/kjynjn)
+## [Demo Link](https://streamable.com/es24oh)
 
 ## Features
 
@@ -121,7 +121,7 @@ The `1 peers` indicates they're connected and syncing!
 ### 1. Generate an Ethereum address / signature:
 ```bash
 # Generate test wallet and signature
-cargo run --bin test_signature
+cargo run --bin signature
 ```
 
 Output example:
@@ -316,8 +316,8 @@ Usernames are stored as `BoundedVec` instead of `Vec` to satisfy `MaxEncodedLen`
 
 ### 4. **Two RPC Methods for Queries**
 
-- `username_get`: Public, no authentication (gas-free reads)
-- `username_get_secure`: Requires Ethereum signature (access control)
+- `username_get`: Public, no authentication
+- `username_get_secure`: Requires Ethereum signature
 
 This dual approach allows flexibility:
 - Public blockchain data remains accessible
@@ -330,12 +330,6 @@ Custom RPC endpoints are designed for **queries**, not transactions because:
 - Standard `author_submitExtrinsic` is well-supported by all tooling
 - Maintains compatibility with wallets, explorers, and clients
 - Follows Substrate best practices
-
-### 6. **Metadata Hash Extension**
-
-The runtime includes `CheckMetadataHash` for transaction safety. For development:
-- Can be temporarily disabled in `runtime/src/lib.rs`
-- Production: Keep enabled and use compatible client versions
 
 ---
 
