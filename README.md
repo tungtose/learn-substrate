@@ -2,6 +2,8 @@
 
 A simple Substrate-based blockchain that demonstrates storing and retrieving Ethereum address → username mappings via custom JSON-RPC methods in a 2-node environment.
 
+## [Demo Link](https://streamable.com/kjynjn)
+
 ## Features
 
 - On-chain storage: Ethereum address (H160) → username mapping
