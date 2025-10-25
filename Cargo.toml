@@ -9,14 +9,15 @@ edition = "2021"
 members = [
     "node",
     "pallets/template",
-    "runtime",
+    "runtime", 
+    "signature", "submit_account",
 ]
 resolver = "2"
 
 [workspace.dependencies]
 solochain-template-runtime = { path = "./runtime", default-features = false }
 pallet-template = { path = "./pallets/template", default-features = false }
-clap = { version = "4.5.13" }
+clap = { version = "4.5.13", features = ["derive"] }
 frame-benchmarking-cli = { version = "47.0.0", default-features = false }
 frame-metadata-hash-extension = { version = "0.8.0", default-features = false }
 frame-system = { version = "40.1.0", default-features = false }
@@ -72,6 +73,13 @@ sp-storage = { version = "22.0.0", default-features = false }
 sp-transaction-pool = { version = "36.0.0", default-features = false }
 sp-version = { version = "39.0.0", default-features = false }
 substrate-wasm-builder = { version = "26.0.1", default-features = false }
+hex = { version = "0.4.3" }
+log = { version = "0.4" }
+tokio = { version = "1", features = ["full"] }
+subxt = { version = "0.44" }
+hex-literal = "0.4"
+subxt-signer = "0.44.0"
+
 
 [profile.release]
 opt-level = 3

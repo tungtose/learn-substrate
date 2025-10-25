@@ -1,232 +1,374 @@
-# Substrate Node Template
+# Substrate Username Registry
 
-A fresh [Substrate](https://substrate.io/) node, ready for hacking :rocket:
+A simple Substrate-based blockchain that demonstrates storing and retrieving Ethereum address → username mappings via custom JSON-RPC methods in a 2-node environment.
 
-A standalone version of this template is available for each release of Polkadot
-in the [Substrate Developer Hub Parachain
-Template](https://github.com/substrate-developer-hub/substrate-node-template/)
-repository. The parachain template is generated directly at each Polkadot
-release branch from the [Solochain Template in
-Substrate](https://github.com/paritytech/polkadot-sdk/tree/master/templates/solochain)
-upstream
+## Features
 
-It is usually best to use the stand-alone version to start a new project. All
-bugs, suggestions, and feature requests should be made upstream in the
-[Substrate](https://github.com/paritytech/polkadot-sdk/tree/master/substrate)
-repository.
+- On-chain storage: Ethereum address (H160) → username mapping
+- Signed transactions: Only authenticated users can set usernames
+- Custom JSON-RPC methods for querying usernames
+- Optional signature verification for read operations
+- Two-node sync demonstration
 
-## Getting Started
+## Architecture
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Substrate Network                        │
+│                                                             │
+│  ┌────────────────────┐      ┌────────────────────┐         │
+│  │   Node A (Alice)   │◄────►│   Node B (Bob)     │         │
+│  │   Port: 9944       │ P2P  │   Port: 9945       │         │
+│  └────────────────────┘      └────────────────────┘         │
+│           │                            │                    │
+│           │   Shared Blockchain State  │                    │
+│           ▼                            ▼                    │
+│  ┌──────────────────────────────────────────────┐           │
+│  │  Storage: H160 → BoundedVec<u8, 32>          │           │
+│  │  0xabc... → "alice"                          │           │
+│  │  0xdef... → "bob"                            │           │
+│  └──────────────────────────────────────────────┘           │
+└─────────────────────────────────────────────────────────────┘
+         ▲                           ▲
+         │ RPC/Tool                  │ RPC
+         │                           │
+    ┌────┴─────┐              ┌──────┴──────┐
+    │  Client  │              │   Client    │
+    │  (Write) │              │   (Read)    │
+    └──────────┘              └─────────────┘
 
-Depending on your operating system and Rust version, there might be additional
-packages required to compile this template. Check the
-[Install](https://docs.substrate.io/install/) instructions for your platform for
-the most common dependencies. Alternatively, you can use one of the [alternative
-installation](#alternatives-installations) options.
-
-Fetch solochain template code:
-
-```sh
-git clone https://github.com/paritytech/polkadot-sdk-solochain-template.git solochain-template
-
-cd solochain-template
 ```
 
-### Build
+## Prerequisites
 
-🔨 Use the following command to build the node without launching it:
+- Rust stable (`curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`)
+- curl or HTTP client
+- Essential build tools:
+```bash
+sudo pacman -S clang git curl
+```
 
-```sh
+## Project Structure
+```
+substrate-node-template/
+├── pallets/template/         # Custom pallet with username storage
+│   └── src/lib.rs            # Storage map + extrinsic logic
+├── runtime/                  # Runtime configuration
+│   ├── src/lib.rs            # Runtime API declaration
+│   └── src/apis.rs           # UsernameApi trait
+├── node/                     # Node implementation
+│   └── src/
+│       └── rpc/
+│           └── username.rs   # Custom RPC implementation
+├── signature                 # Generate ethereum adress and its signature
+│
+└── summit_account/           # CLI tool to submit accounts using subxt
+```
+
+## Setup Instructions
+
+### 1. Build the Project
+```bash
+# Build in release mode
 cargo build --release
 ```
 
-### Embedded Docs
-
-After you build the project, you can use the following command to explore its
-parameters and subcommands:
-
-```sh
-./target/release/solochain-template-node -h
+### 2. Start Node A (Alice)
+```bash
+./target/release/solochain-template-node \
+  --base-path /tmp/alice \
+  --chain local \
+  --alice \
+  --port 30333 \
+  --rpc-port 9944 \
+  --validator \
+  --node-key 0000000000000000000000000000000000000000000000000000000000000001
 ```
 
-You can generate and view the [Rust
-Docs](https://doc.rust-lang.org/cargo/commands/cargo-doc.html) for this template
-with this command:
-
-```sh
-cargo +nightly doc --open
+**Expected output:**
+```
+Local node identity is: 12D3KooW...
+💤 Idle (0 peers), best: #0
 ```
 
-### Single-Node Development Chain
+### 3. Start Node B (Bob)
 
-The following command starts a single-node development chain that doesn't
-persist state:
-
-```sh
-./target/release/solochain-template-node --dev
+In a new terminal:
+```bash
+./target/release/solochain-template-node \
+  --base-path /tmp/bob \
+  --chain local \
+  --bob \
+  --port 30334 \
+  --rpc-port 9945 \
+  --validator \
+  --node-key 0000000000000000000000000000000000000000000000000000000000000002 \
+  --bootnodes /ip4/127.0.0.1/tcp/30333/p2p/12D3KooWEyoppNCUx8Yx66oV9fJnriXwCcXwDDUA2kj6vnc6iDEp
 ```
 
-To purge the development chain's state, run the following command:
-
-```sh
-./target/release/solochain-template-node purge-chain --dev
+**Verify sync:**
+Both nodes should show:
+```
+💤 Idle (1 peers), best: #123
 ```
 
-To start the development chain with detailed logging, run the following command:
+The `1 peers` indicates they're connected and syncing!
 
-```sh
-RUST_BACKTRACE=1 ./target/release/solochain-template-node -ldebug --dev
+## Usage Instructions
+
+
+### 1. Generate an Ethereum address / signature:
+```bash
+# Generate test wallet and signature
+cargo run --bin test_signature
 ```
 
-Development chains:
+Output example:
+```
+Ethereum Address: 0x5778e653fd3b463e75457d647656f7c18555513a
+Message: query_username
+Signature: 0x2ee307c1b533...
+```
+---
 
-- Maintain state in a `tmp` folder while the node is running.
-- Use the **Alice** and **Bob** accounts as default validator authorities.
-- Use the **Alice** account as the default `sudo` account.
-- Are preconfigured with a genesis state (`/node/src/chain_spec.rs`) that
-  includes several pre-funded development accounts.
+### 2. Store a Username (Write Operation)
 
+```bash
+# Build the client
+cargo build --release
 
-To persist chain state between runs, specify a base path by running a command
-similar to the following:
-
-```sh
-// Create a folder to use as the db base path
-$ mkdir my-chain-state
-
-// Use of that folder to store the chain state
-$ ./target/release/solochain-template-node --dev --base-path ./my-chain-state/
-
-// Check the folder structure created inside the base path after running the chain
-$ ls ./my-chain-state
-chains
-$ ls ./my-chain-state/chains/
-dev
-$ ls ./my-chain-state/chains/dev
-db keystore network
+# Submit username
+./target/release/submit-username \
+  --url ws://127.0.0.1:9944 \
+  --eth-address 0x5778e653fd3b463e75457d647656f7c18555513a \
+  --username alice
 ```
 
-### Connect with Polkadot-JS Apps Front-End
+---
 
-After you start the node template locally, you can interact with it using the
-hosted version of the [Polkadot/Substrate
-Portal](https://polkadot.js.org/apps/#/explorer?rpc=ws://localhost:9944)
-front-end by connecting to the local node endpoint. A hosted version is also
-available on [IPFS](https://dotapps.io/). You can
-also find the source code and instructions for hosting your own instance in the
-[`polkadot-js/apps`](https://github.com/polkadot-js/apps) repository.
+### 3. Query a Username (Read Operation)
 
-### Multi-Node Local Testnet
+**Method 1: Basic Query (No Authentication)**
+```bash
+curl -H "Content-Type: application/json" \
+  -d '{
+    "id":1,
+    "jsonrpc":"2.0",
+    "method":"username_get",
+    "params":["0x5778e653fd3b463e75457d647656f7c18555513a", null]
+  }' \
+  http://localhost:9944
+```
 
-If you want to see the multi-node consensus algorithm in action, see [Simulate a
-network](https://docs.substrate.io/tutorials/build-a-blockchain/simulate-network/).
+**Response:**
+```json
+{
+  "jsonrpc": "2.0",
+  "result": "alice",
+  "id": 1
+}
+```
 
-## Template Structure
+**Method 2: Secure Query (With Signature Verification)**
 
-A Substrate project such as this consists of a number of components that are
-spread across a few directories.
+Query with signature generated above:
+```bash
+curl -H "Content-Type: application/json" \
+  -d '{
+    "id":1,
+    "jsonrpc":"2.0",
+    "method":"username_get_secure",
+    "params":[
+      "0x5778e653fd3b463e75457d647656f7c18555513a",
+      "0x2ee307c1b533...",
+      "query_username",
+      null
+    ]
+  }' \
+  http://localhost:9944
+```
 
-### Node
+---
 
-A blockchain node is an application that allows users to participate in a
-blockchain network. Substrate-based blockchain nodes expose a number of
-capabilities:
+### 4. Verify Two-Node Sync
 
-- Networking: Substrate nodes use the [`libp2p`](https://libp2p.io/) networking
-  stack to allow the nodes in the network to communicate with one another.
-- Consensus: Blockchains must have a way to come to
-  [consensus](https://docs.substrate.io/fundamentals/consensus/) on the state of
-  the network. Substrate makes it possible to supply custom consensus engines
-  and also ships with several consensus mechanisms that have been built on top
-  of [Web3 Foundation
-  research](https://research.web3.foundation/Polkadot/protocols/NPoS).
-- RPC Server: A remote procedure call (RPC) server is used to interact with
-  Substrate nodes.
+**Store data on Node A:**
+```bash
+# Submit via Node A (port 9944)
+# UseCLI tool as shown above
+```
 
-There are several files in the `node` directory. Take special note of the
-following:
+**Query from Node B:**
+```bash
+curl -H "Content-Type: application/json" \
+  -d '{
+    "id":1,
+    "jsonrpc":"2.0",
+    "method":"username_get",
+    "params":["0x742d35cc6634c0532925a3b844bc9e7595f0beb0", null]
+  }' \
+  http://localhost:9945
+```
 
-- [`chain_spec.rs`](./node/src/chain_spec.rs): A [chain
-  specification](https://docs.substrate.io/build/chain-spec/) is a source code
-  file that defines a Substrate chain's initial (genesis) state. Chain
-  specifications are useful for development and testing, and critical when
-  architecting the launch of a production chain. Take note of the
-  `development_config` and `testnet_genesis` functions. These functions are
-  used to define the genesis state for the local development chain
-  configuration. These functions identify some [well-known
-  accounts](https://docs.substrate.io/reference/command-line-tools/subkey/) and
-  use them to configure the blockchain's initial state.
-- [`service.rs`](./node/src/service.rs): This file defines the node
-  implementation. Take note of the libraries that this file imports and the
-  names of the functions it invokes. In particular, there are references to
-  consensus-related topics, such as the [block finalization and
-  forks](https://docs.substrate.io/fundamentals/consensus/#finalization-and-forks)
-  and other [consensus
-  mechanisms](https://docs.substrate.io/fundamentals/consensus/#default-consensus-models)
-  such as Aura for block authoring and GRANDPA for finality.
+**Result:** Node B returns the same username stored on Node A! ✅
+
+This demonstrates blockchain consensus and state synchronization.
+
+---
+
+## Custom JSON-RPC Endpoints
+
+### `username_get`
+
+Retrieve username for an Ethereum address (no authentication required).
+
+**Request:**
+```json
+{
+  "id": 1,
+  "jsonrpc": "2.0",
+  "method": "username_get",
+  "params": ["0xETH_ADDRESS", null]
+}
+```
+
+**Response:**
+```json
+{
+  "jsonrpc": "2.0",
+  "result": "username" | null,
+  "id": 1
+}
+```
+
+### `username_get_secure`
+
+Retrieve username with Ethereum signature verification.
+
+**Request:**
+```json
+{
+  "id": 1,
+  "jsonrpc": "2.0",
+  "method": "username_get_secure",
+  "params": [
+    "0xETH_ADDRESS",
+    "0xSIGNATURE_65_BYTES_HEX",
+    "MESSAGE_SIGNED",
+    null
+  ]
+}
+```
+
+**Response:**
+```json
+{
+  "jsonrpc": "2.0",
+  "result": "username" | null,
+  "id": 1
+}
+```
+
+**Error (invalid signature):**
+```json
+{
+  "jsonrpc": "2.0",
+  "error": {
+    "code": 3,
+    "message": "Invalid signature"
+  },
+  "id": 1
+}
+```
+
+---
+
+## Design Considerations
+
+### 1. **Ethereum Address as Key (H160)**
+
+We use Ethereum addresses (`H160` = 20 bytes) instead of Substrate accounts to demonstrate cross-chain compatibility. This allows:
+- Users to prove ownership with Ethereum wallets (MetaMask, etc.)
+- Easier integration with Ethereum ecosystem
+- Signature verification using secp256k1 (Ethereum's curve)
+
+### 2. **BoundedVec for Storage**
+```rust
+BoundedVec<u8, ConstU32<32>>
+```
+
+Usernames are stored as `BoundedVec` instead of `Vec` to satisfy `MaxEncodedLen` trait bounds required by Substrate storage. This ensures:
+- Predictable storage costs
+- Compile-time guarantees about maximum storage size
+
+### 3. **Signature Verification Strategy**
+
+**Off-chain (RPC layer):**
+- Fast verification before querying storage
+- Reduces on-chain computation
+- Optional feature for read operations
+
+**On-chain (pallet layer):**
+- Only the signed extrinsic requires authentication
+- Uses Substrate's built-in `ensure_signed!` macro
+- Future work: Could add unsigned extrinsic with Ethereum signature verification on-chain
+
+### 4. **Two RPC Methods for Queries**
+
+- `username_get`: Public, no authentication (gas-free reads)
+- `username_get_secure`: Requires Ethereum signature (access control)
+
+This dual approach allows flexibility:
+- Public blockchain data remains accessible
+- Sensitive queries can require proof of ownership
+
+### 5. **Why Not Use Custom RPC for Writes?**
+
+Custom RPC endpoints are designed for **queries**, not transactions because:
+- RPC servers shouldn't hold private keys (security risk)
+- Standard `author_submitExtrinsic` is well-supported by all tooling
+- Maintains compatibility with wallets, explorers, and clients
+- Follows Substrate best practices
+
+### 6. **Metadata Hash Extension**
+
+The runtime includes `CheckMetadataHash` for transaction safety. For development:
+- Can be temporarily disabled in `runtime/src/lib.rs`
+- Production: Keep enabled and use compatible client versions
+
+---
 
 
-### Runtime
+## Troubleshooting
 
-In Substrate, the terms "runtime" and "state transition function" are analogous.
-Both terms refer to the core logic of the blockchain that is responsible for
-validating blocks and executing the state changes they define. The Substrate
-project in this repository uses
-[FRAME](https://docs.substrate.io/learn/runtime-development/#frame) to construct
-a blockchain runtime. FRAME allows runtime developers to declare domain-specific
-logic in modules called "pallets". At the heart of FRAME is a helpful [macro
-language](https://docs.substrate.io/reference/frame-macros/) that makes it easy
-to create pallets and flexibly compose them to create blockchains that can
-address [a variety of needs](https://substrate.io/ecosystem/projects/).
+### Failed to build rockdbs
 
-Review the [FRAME runtime implementation](./runtime/src/lib.rs) included in this
-template and note the following:
+```bash
+# Solution: This is how I solve on arch linux
+sudo pacman -S rocksdb
+export ROCKSDB_LIB_DIR=/usr/lib
+cargo build --release 
+```
 
-- This file configures several pallets to include in the runtime. Each pallet
-  configuration is defined by a code block that begins with `impl
-  $PALLET_NAME::Config for Runtime`.
-- The pallets are composed into a single runtime by way of the
-  [#[runtime]](https://paritytech.github.io/polkadot-sdk/master/frame_support/attr.runtime.html)
-  macro, which is part of the [core FRAME pallet
-  library](https://docs.substrate.io/reference/frame-pallets/#system-pallets).
+### Nodes won't sync (0 peers)
 
-### Pallets
+1. Check the bootnode address in Node B command matches Node A's peer ID
+2. Look for Node A's peer ID in logs: `Local node identity is: 12D3KooW...`
+3. Update the `--bootnodes` parameter
 
-The runtime in this project is constructed using many FRAME pallets that ship
-with [the Substrate
-repository](https://github.com/paritytech/polkadot-sdk/tree/master/substrate/frame) and a
-template pallet that is [defined in the
-`pallets`](./pallets/template/src/lib.rs) directory.
+### RPC returns `null` for existing username
 
-A FRAME pallet is comprised of a number of blockchain primitives, including:
+1. Verify transaction was included in a block (check Polkadot.js)
+2. Wait a few seconds for block production
+3. Check storage directly via Polkadot.js: Developer → Chain State → template → usernames
 
-- Storage: FRAME defines a rich set of powerful [storage
-  abstractions](https://docs.substrate.io/build/runtime-storage/) that makes it
-  easy to use Substrate's efficient key-value database to manage the evolving
-  state of a blockchain.
-- Dispatchables: FRAME pallets define special types of functions that can be
-  invoked (dispatched) from outside of the runtime in order to update its state.
-- Events: Substrate uses
-  [events](https://docs.substrate.io/build/events-and-errors/) to notify users
-  of significant state changes.
-- Errors: When a dispatchable fails, it returns an error.
+### "Priority too low" error
 
-Each pallet has its own `Config` trait which serves as a configuration interface
-to generically define the types and parameters it depends on.
+The transaction is already in the mempool. Wait for it to be included in a block (~6 seconds), then try again.
 
-## Alternatives Installations
+---
 
-Instead of installing dependencies and building this source directly, consider
-the following alternatives.
-
-### Nix
-
-Install [nix](https://nixos.org/) and
-[nix-direnv](https://github.com/nix-community/nix-direnv) for a fully
-plug-and-play experience for setting up the development environment. To get all
-the correct dependencies, activate direnv `direnv allow`.
-
-### Docker
-
-Please follow the [Substrate Docker instructions
-here](https://github.com/paritytech/polkadot-sdk/blob/master/substrate/docker/README.md) to
-build the Docker container with the Substrate Node Template binary.
+## Resources
+- [Build custom pallet](https://docs.polkadot.com/tutorials/polkadot-sdk/parachains/zero-to-hero/build-custom-pallet/)
+- [Polkadot.js Apps](https://polkadot.js.org/apps/)
+- [subxt Documentation](https://docs.rs/subxt/)
+- [Ethereum Signature Verification](https://eips.ethereum.org/EIPS/eip-191)

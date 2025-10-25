@@ -1,0 +1,20 @@
+[package]
+name = "submit_account"
+version = "0.1.0"
+license.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+edition.workspace = true
+
+[dependencies]
+tokio.workspace = true
+subxt.workspace = true
+sp-keyring.workspace = true
+sp-core.workspace = true
+hex-literal.workspace = true
+hex.workspace = true
+subxt-signer.workspace = true
+codec.workspace = true
+sp-core.worksapce = true
+clap.workspace = true
