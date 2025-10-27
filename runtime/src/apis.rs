@@ -47,10 +47,10 @@ use super::{
 };
 use sp_core::H160;
 
-
 sp_api::decl_runtime_apis! {
     pub trait UsernameApi {
         fn get_username(eth_address: H160) -> Option<Vec<u8>>;
+        fn get_nonce(eth_address: H160) -> u64;
     }
 }
 
@@ -86,6 +86,10 @@ impl_runtime_apis! {
     impl self::UsernameApi<Block> for Runtime {
         fn get_username(eth_address: H160) -> Option<Vec<u8>> {
             crate::Template::get_username(eth_address)
+        }
+
+        fn get_nonce(eth_address: H160) -> u64 {
+            crate::Template::get_nonce(eth_address)
         }
     }
 

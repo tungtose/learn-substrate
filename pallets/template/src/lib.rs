@@ -65,6 +65,10 @@ pub mod pallet {
     pub type Something<T> = StorageValue<_, u32>;
 
     #[pallet::storage]
+    #[pallet::getter(fn nonces)]
+    pub type Nonces<T: Config> = StorageMap<_, Blake2_128Concat, H160, u64, ValueQuery>;
+
+    #[pallet::storage]
     #[pallet::getter(fn usernames)]
     pub type Usernames<T: Config> =
         StorageMap<_, Blake2_128Concat, H160, BoundedVec<u8, T::MaxUsernameLength>, OptionQuery>;
@@ -100,6 +104,7 @@ pub mod pallet {
     pub enum Error<T> {
         UsernameTooLong,
         InvalidUsername,
+        InvalidNonce,
         InvalidEthereumSignature,
     }
 
@@ -128,10 +133,14 @@ pub mod pallet {
             origin: OriginFor<T>,
             eth_address: H160,
             username: Vec<u8>,
+            nonce: u64,
             eth_signature: Vec<u8>,
         ) -> DispatchResult {
             // Check that the extrinsic was signed and get the signer.
             let _ = ensure_signed(origin)?;
+
+            let expected_nonce = Nonces::<T>::get(&eth_address);
+            ensure!(nonce == expected_nonce, Error::<T>::InvalidNonce);
 
             let bounded_username: BoundedVec<u8, T::MaxUsernameLength> = username
                 .clone()
@@ -146,8 +155,9 @@ pub mod pallet {
             );
 
             let message = format!(
-                "set_username:{}",
-                String::from_utf8_lossy(&username.clone())
+                "set_username:{}:{}",
+                String::from_utf8_lossy(&username.clone()),
+                &nonce
             );
 
             ensure!(
@@ -156,6 +166,7 @@ pub mod pallet {
             );
 
             // Store
+            Nonces::<T>::insert(&eth_address, nonce + 1);
             Usernames::<T>::insert(&eth_address, bounded_username.clone());
 
             Self::deposit_event(Event::UsernameSet {
@@ -169,6 +180,10 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
+    pub fn get_nonce(eth_address: H160) -> u64 {
+        Nonces::<T>::get(eth_address)
+    }
+
     pub fn get_username(eth_address: H160) -> Option<Vec<u8>> {
         Usernames::<T>::get(eth_address).map(|b| b.into_inner())
     }

@@ -25,6 +25,9 @@ struct Args {
     /// Ethereum signature (65 bytes hex with 0x prefix)
     #[arg(short = 's', long)]
     eth_signature: String,
+
+    #[arg(short = 'o', long)]
+    nonce: u64,
 }
 
 #[tokio::main]
@@ -33,6 +36,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Connecting to node: {}", args.url);
     let api = OnlineClient::<PolkadotConfig>::from_url(&args.url).await?;
     println!("Connected");
+
 
     let eth_addr_hex = args.eth_address.trim_start_matches("0x");
     let eth_addr_bytes = hex::decode(eth_addr_hex).map_err(|_| "Invalid Ethereum address hex")?;
@@ -45,6 +49,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     eth_address.copy_from_slice(&eth_addr_bytes);
     let eth_address = H160(eth_address);
 
+    let nonce = args.nonce;
+
     let username = args.username.as_bytes().to_vec();
 
     // Parse signature
@@ -56,6 +62,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     println!("Submitting ...");
+    println!("Using nonce: {nonce}");
     println!("Eth Address: 0x{}", hex::encode(eth_addr_bytes));
     println!("Username: {}", String::from_utf8_lossy(&username));
     println!("Signature: {}...", &args.eth_signature[..20]);
@@ -63,7 +70,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let tx = polkadot::tx()
         .template()
-        .set_username(eth_address, username, signature);
+        .set_username(eth_address, username, nonce, signature);
 
     let from = dev::alice();
 

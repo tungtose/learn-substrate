@@ -14,6 +14,9 @@ use std::sync::Arc;
 
 #[rpc(client, server)]
 pub trait UsernameApi<BlockHash> {
+    #[method(name = "username_get_nonce")]
+    fn get_nonce(&self, eth_address: H160, at: Option<BlockHash>) -> RpcResult<u64>;
+
     #[method(name = "username_get")]
     fn get_username(&self, eth_address: H160, at: Option<BlockHash>) -> RpcResult<Option<String>>;
 
@@ -48,6 +51,15 @@ where
     C: Send + Sync + 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block>,
     C::Api: UsernameRuntimeApi<Block>,
 {
+    fn get_nonce(&self, eth_address: H160, at: Option<<Block as BlockT>::Hash>) -> RpcResult<u64> {
+        let api = self.client.runtime_api();
+        let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
+
+        api.get_nonce(at_hash, eth_address).map_err(|e| {
+            ErrorObjectOwned::owned(1, "Unable to query nonce", Some(format!("{:?}", e)))
+        })
+    }
+
     fn get_username(
         &self,
         eth_address: H160,

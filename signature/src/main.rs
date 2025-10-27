@@ -1,6 +1,6 @@
+use clap::Parser;
 use sp_core::{ecdsa, Pair, H160};
 use sp_io::hashing::keccak_256;
-use clap::Parser;
 
 #[derive(Parser, Debug)]
 #[command(name = "signature")]
@@ -8,18 +8,44 @@ struct Args {
     /// Username to register
     #[arg(short, long)]
     username: String,
+
+    /// Nonce for replay protection
+    #[arg(short, long)]
+    nonce: u64,
+
+    #[arg(short, long)]
+    private_key: Option<String>,
 }
 
 fn main() {
     let args = Args::parse();
 
-    let (pair, _seed) = ecdsa::Pair::generate();
+    let pair = if let Some(pk_hex) = args.private_key {
+        let pk_bytes =
+            hex::decode(pk_hex.trim_start_matches("0x")).expect("Invalid private key hex");
+
+        if pk_bytes.len() != 32 {
+            eprintln!("Private key must be 32 bytes");
+            return;
+        }
+
+        let seed: [u8; 32] = pk_bytes.try_into().unwrap();
+        ecdsa::Pair::from_seed(&seed)
+    } else {
+        let (pair, seed) = ecdsa::Pair::generate();
+        println!("=== Generated Private Key ===");
+        println!("Private Key: 0x{}", hex::encode(&seed));
+        println!();
+        pair
+    };
 
     let username = args.username.as_bytes();
 
-    // Message format: "set_username:{username}"
+    // Message format: "set_username:{username}:{nonce}"
     let mut message = b"set_username:".to_vec();
     message.extend_from_slice(username);
+    message.push(b':');
+    message.extend_from_slice(args.nonce.to_string().as_bytes());
 
     let prefix = format!("\x19Ethereum Signed Message:\n{}", message.len());
     let mut eth_message = prefix.as_bytes().to_vec();
