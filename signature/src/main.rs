@@ -1,13 +1,29 @@
 use sp_core::{ecdsa, Pair, H160};
 use sp_io::hashing::keccak_256;
+use clap::Parser;
+
+#[derive(Parser, Debug)]
+#[command(name = "signature")]
+struct Args {
+    /// Username to register
+    #[arg(short, long)]
+    username: String,
+}
 
 fn main() {
+    let args = Args::parse();
+
     let (pair, _seed) = ecdsa::Pair::generate();
-    let message = b"query_username";
+
+    let username = args.username.as_bytes();
+
+    // Message format: "set_username:{username}"
+    let mut message = b"set_username:".to_vec();
+    message.extend_from_slice(username);
 
     let prefix = format!("\x19Ethereum Signed Message:\n{}", message.len());
     let mut eth_message = prefix.as_bytes().to_vec();
-    eth_message.extend_from_slice(message);
+    eth_message.extend_from_slice(&message);
 
     let message_hash = keccak_256(&eth_message);
     let signature = pair.sign_prehashed(&message_hash);
@@ -43,7 +59,7 @@ fn main() {
         "Ethereum Address: 0x{}",
         hex::encode(eth_address.as_bytes())
     );
-    println!("Message: {}", String::from_utf8_lossy(message));
+    println!("Message: {}", String::from_utf8_lossy(message.as_slice()));
     println!("Signature: 0x{}", sig_hex);
     println!();
     println!("=== First store username using submit_account binary ===");
@@ -52,16 +68,10 @@ fn main() {
     println!();
 
     println!("=== Then test with curl ===");
+    println!(r#"curl -H "Content-Type: application/json" \"#);
     println!(
-        r#"curl -H "Content-Type: application/json" \
-  -d '{{
-    "id":1,
-    "jsonrpc":"2.0",
-    "method":"username_get_secure",
-    "params":["0x{}", "0x{}", "query_username", null]
-  }}' \
-  http://localhost:9945"#,
-        hex::encode(eth_address.as_bytes()),
-        sig_hex
+        r#"  -d '{{"id":1,"jsonrpc":"2.0","method":"username_get","params":["0x{}", null]}}' \"#,
+        hex::encode(eth_address.as_bytes())
     );
+    println!(r#"  http://localhost:9944"#);
 }

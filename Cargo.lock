@@ -9366,6 +9366,7 @@ dependencies = [
 name = "signature"
 version = "0.1.0"
 dependencies = [
+ "clap",
  "hex",
  "sp-core",
  "sp-io",

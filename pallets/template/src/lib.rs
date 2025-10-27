@@ -21,8 +21,11 @@ mod benchmarking;
 pub mod weights;
 pub use weights::*;
 
+use codec::alloc::string::String;
+use scale_info::prelude::format;
 use scale_info::prelude::vec::Vec;
 use sp_core::H160;
+use sp_io::hashing::keccak_256;
 
 // All pallet logic is defined in its own module and must be annotated by the `pallet` attribute.
 #[frame_support::pallet]
@@ -97,6 +100,7 @@ pub mod pallet {
     pub enum Error<T> {
         UsernameTooLong,
         InvalidUsername,
+        InvalidEthereumSignature,
     }
 
     /// The pallet's dispatchable functions ([`Call`]s).
@@ -124,16 +128,31 @@ pub mod pallet {
             origin: OriginFor<T>,
             eth_address: H160,
             username: Vec<u8>,
+            eth_signature: Vec<u8>,
         ) -> DispatchResult {
             // Check that the extrinsic was signed and get the signer.
-            let who = ensure_signed(origin)?;
+            let _ = ensure_signed(origin)?;
+
             let bounded_username: BoundedVec<u8, T::MaxUsernameLength> = username
+                .clone()
                 .try_into()
                 .map_err(|_| Error::<T>::UsernameTooLong)?;
 
             ensure!(
-                bounded_username.iter().all(|&c| c.is_ascii_alphanumeric()),
+                bounded_username
+                    .iter()
+                    .all(|&c| c.is_ascii_alphanumeric() || c == b'_'),
                 Error::<T>::InvalidUsername
+            );
+
+            let message = format!(
+                "set_username:{}",
+                String::from_utf8_lossy(&username.clone())
+            );
+
+            ensure!(
+                Self::verify_ethereum_signature(&eth_address, message.as_bytes(), &eth_signature),
+                Error::<T>::InvalidEthereumSignature
             );
 
             // Store
@@ -152,5 +171,35 @@ pub mod pallet {
 impl<T: Config> Pallet<T> {
     pub fn get_username(eth_address: H160) -> Option<Vec<u8>> {
         Usernames::<T>::get(eth_address).map(|b| b.into_inner())
+    }
+
+    pub fn verify_ethereum_signature(eth_address: &H160, message: &[u8], signature: &[u8]) -> bool {
+        // TODO, make 65, 30, 27 as constants
+        if signature.len() != 65 {
+            return false;
+        }
+
+        let prefix = format!("\x19Ethereum Signed Message:\n{}", message.len());
+        let mut eth_message = prefix.as_bytes().to_vec();
+        eth_message.extend_from_slice(message);
+
+        let hash = keccak_256(&eth_message);
+
+        let mut sig_array = [0u8; 65];
+        sig_array.copy_from_slice(&signature[..65]);
+
+        if sig_array[64] < 27 || sig_array[64] > 30 {
+            return false;
+        }
+        sig_array[64] -= 27;
+
+        match sp_io::crypto::secp256k1_ecdsa_recover(&sig_array, &hash) {
+            Ok(pubkey) => {
+                let recovered_addr_hash = keccak_256(&pubkey[1..]);
+                let recovered_eth_addr = H160::from_slice(&recovered_addr_hash[12..32]);
+                &recovered_eth_addr == eth_address
+            }
+            Err(_) => false,
+        }
     }
 }

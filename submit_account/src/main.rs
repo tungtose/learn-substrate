@@ -21,6 +21,10 @@ struct Args {
     /// Username to set
     #[arg(short = 'n', long)]
     username: String,
+
+    /// Ethereum signature (65 bytes hex with 0x prefix)
+    #[arg(short = 's', long)]
+    eth_signature: String,
 }
 
 #[tokio::main]
@@ -43,14 +47,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let username = args.username.as_bytes().to_vec();
 
+    // Parse signature
+    let sig_hex = args.eth_signature.trim_start_matches("0x");
+    let signature = hex::decode(sig_hex).map_err(|_| "Invalid signature hex")?;
+
+    if signature.len() != 65 {
+        return Err("Signature must be 65 bytes".into());
+    }
+
     println!("Submitting ...");
     println!("Eth Address: 0x{}", hex::encode(eth_addr_bytes));
     println!("Username: {}", String::from_utf8_lossy(&username));
+    println!("Signature: {}...", &args.eth_signature[..20]);
     println!();
 
     let tx = polkadot::tx()
         .template()
-        .set_username(eth_address, username);
+        .set_username(eth_address, username, signature);
 
     let from = dev::alice();
 
